@@ -1,0 +1,81 @@
+# Beach settings for Kook Report. Everything the scoring needs to know about
+# a beach lives here, so tuning never means touching Python.
+#
+# Directions are compass degrees the swell or wind comes FROM
+# (0 = north, 90 = east, 180 = south, 270 = west).
+# A range is [start, end] going clockwise, so [340, 40] wraps through north.
+#
+# These windows are starting guesses from coastline geometry and what we
+# have read and seen. They still need a sanity check from local surfers.
+
+timezone: America/Los_Angeles
+forecast_days: 4      # today + next 3 days
+fallback_buoy: "46221"  # used when a beach's own buoy is offline
+
+beaches:
+  # Malibu Surfrider: a south-facing point break tucked behind Point Dume.
+  # South and southwest swells run straight down the point. West and
+  # northwest swells are mostly blocked by Point Dume and the Channel
+  # Islands, so a big winter west swell can leave Malibu nearly flat.
+  # North winds blow down the canyon and are offshore here. Very high tides
+  # swamp the point and waves stop breaking; very low tides expose rocks.
+  - name: Malibu Surfrider
+    lat: 34.030   # just offshore so the wave model uses an ocean grid cell
+    lon: -118.679
+    swell_best: [180, 220]
+    swell_partial:
+      windows: [[165, 180], [220, 250]]
+      size_factor: 0.5
+    offshore_wind: [340, 40]
+    tide_ft: [1.0, 4.0]
+    buoy: "46268"            # Topanga Nearshore, about 6 mi east
+    tide_station: "9410840"  # Santa Monica
+
+  # Santa Monica Pier: a southwest-facing beach break in the middle of the
+  # bay. It sees a wide range of west and southwest swell, but it sits deep
+  # in the bay so everything arrives smaller than at El Porto. Steep south
+  # swells are shadowed by Palos Verdes and Catalina, and northwest swells
+  # by the Channel Islands. The sandbars get mushy at high tide and dumpy
+  # at very low tide.
+  - name: Santa Monica Pier
+    lat: 34.006
+    lon: -118.502
+    swell_best: [200, 270]
+    swell_partial:
+      windows: [[180, 200], [270, 285]]
+      size_factor: 0.5
+    offshore_wind: [20, 80]
+    tide_ft: [2.0, 4.5]
+    buoy: "46268"            # Topanga Nearshore, about 5 mi west
+    tide_station: "9410840"
+
+  # Venice Breakwater: same exposure as Santa Monica, a couple of miles
+  # south. The rock breakwater builds up a sandbar that works best on the
+  # lower half of the tide and goes soft when the tide fills in.
+  - name: Venice Breakwater
+    lat: 33.984
+    lon: -118.477
+    swell_best: [200, 270]
+    swell_partial:
+      windows: [[180, 200], [270, 285]]
+      size_factor: 0.5
+    offshore_wind: [30, 90]
+    tide_ft: [1.5, 4.0]
+    buoy: "46221"            # Santa Monica Bay, about 13 mi offshore
+    tide_station: "9410840"
+
+  # El Porto: a west-facing beach break in the South Bay. An offshore
+  # canyon focuses west and northwest swell here, so it is usually the
+  # biggest spot in the bay in winter. Palos Verdes blocks most true south
+  # swell; southwest swell gets in at reduced size. East winds are offshore.
+  - name: El Porto
+    lat: 33.902
+    lon: -118.426
+    swell_best: [250, 290]
+    swell_partial:
+      windows: [[215, 250], [290, 300]]
+      size_factor: 0.6
+    offshore_wind: [50, 110]
+    tide_ft: [1.5, 4.5]
+    buoy: "46221"            # Santa Monica Bay, about 12 mi west
+    tide_station: "9410840"
