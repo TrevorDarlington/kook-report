@@ -2,7 +2,7 @@
 
 A free surf forecast for beginner surfers in Los Angeles that answers one question: should I go surf today?
 
-**Live app:** TODO: add the Streamlit link after deploying
+**Live app:** https://kook-report.streamlit.app/
 
 ![Screenshot of Kook Report](docs/screenshot.png)
 
