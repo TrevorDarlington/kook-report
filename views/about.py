@@ -1,16 +1,17 @@
 import pandas as pd
 import streamlit as st
 
-from src import config, scoring
+from src import config, scoring, ui
 
-st.title("About Kook Report")
+ui.hero(
+    "A surf forecast for the rest of us",
+    "Free, for beginners and students in Los Angeles. \"Kook\" is surfer slang for a beginner. We are two of them.",
+    small=True,
+)
 
 st.markdown(
     """
-Kook Report is a free surf forecast for beginners and students in Los Angeles.
-"Kook" is surfer slang for a beginner. We are two of them.
-
-It answers one question: **should I go surf today?**
+Kook Report answers one question: **should I go surf today?**
 
 ### Why not just use Surfline?
 

@@ -57,6 +57,7 @@ class DayScore:
     reason: str
     best_time: pd.Timestamp
     best: HourScore
+    hourly: list        # (time, rating) for each scored hour, for the timeline
 
 
 def rating_for(points):
@@ -332,4 +333,5 @@ def score_day(hours, beach):
         reason=build_reason(scores[best], rating, beach, hint),
         best_time=times[best],
         best=scores[best],
+        hourly=[(t, s.rating) for t, s in zip(times, scores)],
     )

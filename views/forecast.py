@@ -4,26 +4,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from src import config, fetch, scorecard, scoring
+from src import config, fetch, scorecard, scoring, ui
 
-RATING_COLORS = {"Go": "#1B8A5A", "Maybe": "#B7791F", "Don't Go": "#B83232"}
-
-st.markdown(
-    """
-    <style>
-    .block-container {padding-top: 3.5rem; max-width: 640px;}
-    .card {background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
-           border-left: 8px solid var(--c); box-shadow: 0 1px 3px rgba(11, 37, 51, 0.12);}
-    .card-top {display: flex; justify-content: space-between; align-items: center; gap: 8px;}
-    .beach {font-size: 1.15rem; font-weight: 700;}
-    .badge {background: var(--c); color: white; font-weight: 700; font-size: 1.05rem;
-            padding: 4px 14px; border-radius: 999px; white-space: nowrap;}
-    .reason {font-size: 1.05rem; margin: 8px 0 6px 0; line-height: 1.35;}
-    .stats {font-size: 0.85rem; color: #4A6572;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+SHORT_COMPASS = {"north": "N", "northeast": "NE", "east": "E", "southeast": "SE",
+                 "south": "S", "southwest": "SW", "west": "W", "northwest": "NW"}
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -53,45 +37,70 @@ def get_forecast(beach_name, today):
     return None, "failed"
 
 
-def card(beach_name, day):
-    color = RATING_COLORS[day.rating]
+def hour_label(time):
+    return time.strftime("%-I%p").lower()
+
+
+def stat(label, value, note=""):
+    return (f'<div class="stat"><div class="label">{label}</div>'
+            f'<div class="value">{value}</div><div class="note">{note}</div></div>')
+
+
+def card(beach_name, day, top=False):
+    color = ui.RATING_COLORS[day.rating]
     best = day.best
-    swell = f"{best.swell_period_s:.0f}s {scoring.compass_name(best.swell_dir_deg)} swell"
     wind_kind = "side-shore" if best.wind_kind == "cross" else best.wind_kind
-    wind = f"{best.wind_mph:.0f} mph {wind_kind} wind"
-    stats = [scoring.height_range(best.surf_height_ft), swell, wind]
-    if not pd.isna(best.tide_ft):
-        stats.append(f"{best.tide_ft:.1f} ft tide")
-    st.markdown(
-        f"""
-        <div class="card" style="--c: {color}">
-          <div class="card-top"><span class="beach">{beach_name}</span><span class="badge">{day.rating}</span></div>
-          <div class="reason">{day.reason}</div>
-          <div class="stats">{" &middot; ".join(stats)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    direction = SHORT_COMPASS[scoring.compass_name(best.swell_dir_deg)]
+    stats = [
+        stat("Waves", scoring.height_range(best.surf_height_ft).replace(" ft", ""), "ft"),
+        stat("Swell", f"{best.swell_period_s:.0f}s", f"from {direction}"),
+        stat("Wind", f"{best.wind_mph:.0f}", f"mph {wind_kind}"),
+        stat("Tide", "n/a" if pd.isna(best.tide_ft) else f"{best.tide_ft:.1f}", "ft"),
+    ]
+    segments = "".join(f'<span style="background: {ui.RATING_COLORS[r]}"></span>' for _, r in day.hourly)
+    first, last = day.hourly[0][0], day.hourly[-1][0] + timedelta(hours=1)
+    tag = '<div class="tag">Best bet</div>' if top else ""
+    st.html(
+        f'<div class="card {"top" if top else ""}" style="--c: {color}">'
+        f'<div class="card-head"><div>{tag}<div class="beach">{beach_name}</div></div>'
+        f'<span class="pill">{day.rating}</span></div>'
+        f'<div class="reason">{day.reason}</div>'
+        f'<div class="timeline">{segments}</div>'
+        f'<div class="timeline-labels"><span>{hour_label(first)}</span><span>hour by hour</span>'
+        f'<span>{hour_label(last)}</span></div>'
+        f'<div class="stats">{"".join(stats)}</div>'
+        f'</div>'
     )
 
 
 def message_card(beach_name, text):
-    st.markdown(
-        f"""
-        <div class="card" style="--c: #9FB3BD">
-          <div class="card-top"><span class="beach">{beach_name}</span></div>
-          <div class="reason">{text}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    st.html(
+        f'<div class="card"><div class="card-head"><div class="beach">{beach_name}</div></div>'
+        f'<div class="reason" style="color: var(--muted); margin-bottom: 0">{text}</div></div>'
     )
+
+
+def outlook(scores, days, today):
+    """Grid of every beach against every day, so the week reads at a glance."""
+    head = "".join(f"<th>{'Today' if d == today else d.strftime('%a')}</th>" for d in days)
+    rows = []
+    for name in config.BEACHES:
+        cells = []
+        for d in days:
+            day = scores[name].get(d)
+            if day is None:
+                cells.append('<td><span class="chip" style="background: #EEF3F5; color: #8FA3AD">-</span></td>')
+                continue
+            label = "No" if day.rating == "Don't Go" else day.rating
+            cells.append(f'<td><span class="chip" style="background: {ui.RATING_TINTS[day.rating]}; '
+                         f'color: {ui.RATING_COLORS[day.rating]}">{label}</span></td>')
+        rows.append(f'<tr><td class="name">{name}</td>{"".join(cells)}</tr>')
+    st.html(f'<table class="outlook"><tr><th></th>{head}</tr>{"".join(rows)}</table>')
 
 
 now = datetime.now(ZoneInfo(config.TIMEZONE)).replace(tzinfo=None)
 today = now.date()
 this_hour = now.replace(minute=0, second=0, microsecond=0)
-
-st.title("Kook Report")
-st.markdown("**Should I go surf today?** A beginner's forecast for four LA beaches.")
 
 forecasts, sources = {}, set()
 with st.spinner("Loading the forecast..."):
@@ -110,44 +119,72 @@ loaded = [f for f in forecasts.values() if f is not None]
 days = [today + timedelta(days=i) for i in range(config.FORECAST_DAYS)]
 if loaded and all(surfable_hours(f, today).empty for f in loaded):
     days = days[1:]
-    st.info("It's too dark to surf today, so here is tomorrow.")
 
-picked = st.segmented_control(
+# Score every beach for every day once; the cards and the outlook grid both use it.
+scores = {
+    name: {d: scoring.score_day(surfable_hours(forecasts[name], d), beach) for d in days}
+    if forecasts[name] is not None else {}
+    for name, beach in config.BEACHES.items()
+}
+
+picked = st.session_state.get("day")
+if picked not in days:
+    picked = days[0]
+
+ranked = sorted(
+    config.BEACHES,
+    key=lambda name: -scores[name][picked].points if scores[name].get(picked) else 1,
+)
+top = scores[ranked[0]].get(picked)
+day_name = "today" if picked == today else picked.strftime("%A")
+
+if top is None:
+    ui.hero("No forecast right now", "We couldn't reach the forecast service. Try again in a few minutes.",
+            f"Should I go surf {day_name}?")
+elif top.rating == "Go":
+    ui.hero("Yes, go.", f"Best bet is <b>{ranked[0]}</b>. {top.reason}", f"Should I go surf {day_name}?")
+elif top.rating == "Maybe":
+    ui.hero("Maybe.", f"Your best shot is <b>{ranked[0]}</b>. {top.reason}", f"Should I go surf {day_name}?")
+else:
+    ui.hero("Not a beach day.", "Nothing looks good for beginners. Check the next few days below.",
+            f"Should I go surf {day_name}?")
+
+if days[0] != today:
+    st.caption("It's too dark to surf today, so the forecast starts tomorrow.")
+
+st.segmented_control(
     "Day",
     days,
     default=days[0],
+    key="day",
     format_func=lambda d: "Today" if d == today else d.strftime("%a %-d"),
     label_visibility="collapsed",
+    width="stretch",
 )
-picked = picked or days[0]
-
-results = []
-for name, beach in config.BEACHES.items():
-    forecast = forecasts[name]
-    if forecast is None:
-        results.append((name, None, "Couldn't load the forecast for this beach. Try again in a few minutes."))
-        continue
-    day = scoring.score_day(surfable_hours(forecast, picked), beach)
-    if day is None:
-        results.append((name, None, "No forecast data for this day."))
-    else:
-        results.append((name, day, None))
 
 if "saved" in sources:
     st.warning("The live forecast feed is not responding, so some beaches are showing the forecast saved this morning.")
-if sources == {"failed"}:
-    st.error("The forecast service is not responding right now. Nothing is wrong on your end. Try again in a few minutes.")
 
-# Best beach first; beaches without a score go last.
-results.sort(key=lambda r: -r[1].points if r[1] else 1)
-for name, day, text in results:
-    if day:
-        card(name, day)
+for position, name in enumerate(ranked):
+    day = scores[name].get(picked)
+    if forecasts[name] is None:
+        message_card(name, "Couldn't load the forecast for this beach. Try again in a few minutes.")
+    elif day is None:
+        message_card(name, "No forecast data for this day.")
     else:
-        message_card(name, text)
+        card(name, day, top=position == 0 and day.rating != "Don't Go")
 
-st.caption(
-    "Sizes are our estimate of breaking wave height during the best part of the day. "
-    "Scores are for beginners on soft-top boards. Forecasts can be wrong, so look at the "
-    "water before you paddle out and never surf alone at a spot you don't know."
+st.html(
+    '<div class="legend">'
+    + "".join(f'<span><i style="background: {ui.RATING_COLORS[r]}"></i>{r}</span>' for r in ui.RATING_COLORS)
+    + "</div>"
+)
+
+ui.section("Next few days")
+outlook(scores, days, today)
+
+st.html(
+    '<div class="fineprint">Wave size is our estimate of breaking height at the best hour of the day. '
+    "Ratings are for beginners on soft-top boards. Forecasts can be wrong, so look at the water "
+    "before you paddle out and never surf alone at a spot you don't know.</div>"
 )
